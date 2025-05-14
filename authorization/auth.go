@@ -74,6 +74,28 @@ func (a *auth)validateToken(token *jwt.Token)error{
 	}
 	return nil
 }
+
+func (a *auth) Refresh(ctx context.Context, refreshToken string) (string, error) {
+	token, err := a.parseAndValidate(refreshToken)
+	if err != nil {
+	   return "", mapToAuthErrors(err)
+	}
+	claims,ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+	   return "", ErrBadClaim
+	}
+	subject, err := claims.GetSubject()
+	if err != nil {
+	   return "", mapToAuthErrors(err)
+	}
+ 
+	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	   "sub":  subject,
+	   "exp":  time.Now().Add(a.accessTokenDuration).Unix(),
+	   "type": AccessToken,
+	})
+	return newToken.SignedString(a.secret)
+ }
 func claimsToInfo(claims jwt.MapClaims)(Info,error){
 	subject, err := claims.GetSubject()
 	if err != nil {
@@ -102,4 +124,12 @@ func mapToAuthErrors(err error)error{
 		return ErrInvalidSignature
 	}
 	return ErrBadClaim
+}
+
+func NewAuthorization(secret []byte,accessTokenDuration time.Duration,refreshTOkenDuration time.Duration)Authorization{
+	return &auth{
+		secret:               secret,
+		accessTokenDuration:  accessTokenDuration,
+		refreshTOkenDuration: refreshTOkenDuration,
+	}
 }
